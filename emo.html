@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>塔罗牌解读 - 恶魔</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #000;
+  }
+
+  /* 设计稿作为全屏背景 */
+  .design-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    z-index: 0;
+  }
+
+  /* AI文字区域 - 定位在从选区便签纸位置 */
+  .ai-text-area {
+    position: absolute;
+    /* 根据设计稿中便签纸的位置比例定位 */
+    left: 46%;
+    top: 48%;
+    width: 42%;
+    height: 38%;
+    z-index: 10;
+    overflow-y: auto;
+    padding: 4% 6%;
+    font-size: clamp(12px, 1.4vw, 18px);
+    line-height: 1.9;
+    color: #4a3520;
+    font-family: 'Georgia', 'SimSun', serif;
+    background: transparent;
+    border: none;
+    word-break: break-word;
+  }
+
+  .ai-text-area::-webkit-scrollbar { width: 3px; }
+  .ai-text-area::-webkit-scrollbar-thumb {
+    background: rgba(100,70,40,0.25);
+    border-radius: 2px;
+  }
+
+  /* 加载动画 */
+  .loading-dots span {
+    animation: blink 1.4s infinite both;
+    font-size: 16px;
+    color: #8a7050;
+  }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink {
+    0%, 80%, 100% { opacity: 0; }
+    40% { opacity: 1; }
+  }
+
+  /* 返回按钮 */
+  .back-btn {
+    position: absolute;
+    top: 2.5%;
+    left: 3%;
+    z-index: 20;
+    background: rgba(107,76,42,0.7);
+    color: #f5edd6;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 3px;
+    font-family: 'Georgia', serif;
+    font-size: clamp(11px, 1.2vw, 15px);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .back-btn:hover { background: rgba(107,76,42,0.95); }
+
+  /* 重新解读按钮 */
+  .retry-btn {
+    position: absolute;
+    bottom: 4%;
+    right: 4%;
+    z-index: 20;
+    background: rgba(100,55,110,0.65);
+    color: #f0e0f0;
+    border: none;
+    padding: 6px 16px;
+    border-radius: 3px;
+    font-family: 'Georgia', serif;
+    font-size: clamp(11px, 1.2vw, 15px);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .retry-btn:hover { background: rgba(100,55,110,0.9); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: rgba(60,40,20,0.85);
+    color: #f5edd6;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 13px;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- 设计稿全屏背景 -->
+<img class="design-bg" src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEWOVdqQJMLro-wvDlVhy6vv-mRl4lWugACKSgAAq3jAAFWLeAjL7FFiPE8BA.png" alt="塔罗牌界面">
+
+<!-- 返回 -->
+<button class="back-btn" onclick="goBack()">↩ 返回</button>
+
+<!-- 重新解读 -->
+<button class="retry-btn" onclick="retryReading()">重新解读</button>
+
+<!-- AI文字 - 叠在从选区便签纸上方 -->
+<div class="ai-text-area" id="aiTextArea">
+  <div class="loading-dots"><span>●</span><span>●</span><span>●</span></div>
+  <span style="margin-left:6px;color:#8a7050;">牌阵解读中</span>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 配置 =====
+const CONFIG = {
+  USE_MOCK: true,
+  API_ENDPOINT: '',   // 真实API地址
+  API_KEY: '',        // API密钥
+  CARD_NAME: 'the_devil',
+  CARD_NAME_CN: '恶魔',
+  MOCK_DELAY: 2000,
+};
+
+// ===== 模拟数据 =====
+const MOCK_DATA = {
+  the_devil: {
+    romance: '在感情中，恶魔牌暗示着一段充满诱惑却令人窒息的关系。你可能正被某种执念所捆绑——无论是对方的魅力、习惯的依赖，还是对"被爱"本身的渴望。锁链并非不可挣脱，只是你还未愿意放下。\n\n提示：审视关系中是否存在不平等的权力动态，真正的爱不应让你感到被困。',
+    wisdom: '恶魔牌揭示的是自我束缚的幻象。那些看似坚不可摧的锁链，实则松散可脱——你的恐惧与欲望才是真正的枷锁。智慧在于认清：物质与欲望本身并非邪恶，执迷方是牢笼。\n\n提示：将欲望转化为动力而非奴役，你拥有选择自由的能力。',
+    mystery: '暗夜中，恶魔低语着禁忌的诱惑。XV号牌的阴影里藏着炼金术的秘密——铅转化为金的关键不在火炉，而在你直面黑暗的勇气。倒五芒星并非邪恶象征，而是物质凌驾精神的警号。\n\n提示：黑暗本身就是最好的老师，不要逃避它传递的信息。',
+    warning: '⚠ 警示：你正处于被束缚的危险之中。无论是成瘾、执迷还是不健康的关系，锁链已悄然收紧。恶魔牌是最严厉的警告——继续沉溺将失去自我。\n\n提示：现在就是挣脱的时机，越迟越难。承认困境是解放的第一步。'
+  }
+};
+
+function pickStyle() {
+  const s = ['romance','wisdom','mystery','warning'];
+  return s[Math.floor(Math.random() * s.length)];
+}
+
+async function callExternalAI(userInput) {
+  if (CONFIG.USE_MOCK) {
+    return new Promise(r => {
+      setTimeout(() => {
+        const style = pickStyle();
+        const d = MOCK_DATA[CONFIG.CARD_NAME] || MOCK_DATA.the_devil;
+        r({ style, text: d[style] || d.wisdom });
+      }, CONFIG.MOCK_DELAY);
+    });
+  }
+  try {
+    const res = await fetch(CONFIG.API_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + CONFIG.API_KEY
+      },
+      body: JSON.stringify({
+        card: CONFIG.CARD_NAME,
+        card_cn: CONFIG.CARD_NAME_CN,
+        question: userInput || '',
+        lang: 'zh-CN'
+      })
+    });
+    if (!res.ok) throw new Error('API ' + res.status);
+    const data = await res.json();
+    return { style: data.style || 'wisdom', text: data.text || data.content || '解读完成' };
+  } catch (e) {
+    console.error('AI调用失败:', e);
+    showToast('解读请求失败，请稍后重试');
+    return { style: 'wisdom', text: '解读暂时无法获取，请稍后再试。' };
+  }
+}
+
+function displayAIResponse(result) {
+  const el = document.getElementById('aiTextArea');
+  const colorMap = { romance:'#7a3050', wisdom:'#3a5a3a', mystery:'#3a2a60', warning:'#8a3020' };
+  el.style.color = colorMap[result.style] || '#4a3520';
+  const allText = result.text.split('\n').map(l=>l.trim()).filter(Boolean).join('\n');
+  let out = '', i = 0;
+  el.innerHTML = '';
+  function tick() {
+    if (i < allText.length) {
+      out += allText[i] === '\n' ? '<br>' : allText[i];
+      i++;
+      el.innerHTML = out + '<span style="animation:blink 1s infinite">|</span>';
+      setTimeout(tick, 25 + Math.random() * 35);
+    } else {
+      el.innerHTML = out;
+    }
+  }
+  tick();
+}
+
+async function initReading() {
+  const params = new URLSearchParams(location.search);
+  const q = params.get('q') || params.get('question') || '';
+  try {
+    const r = await callExternalAI(q);
+    displayAIResponse(r);
+  } catch (e) {
+    document.getElementById('aiTextArea').innerHTML =
+      '<span style="color:#8a4030">解读遇到问题，请点击"重新解读"重试。</span>';
+  }
+}
+
+function retryReading() {
+  const el = document.getElementById('aiTextArea');
+  el.innerHTML = '<div class="loading-dots"><span>●</span><span>●</span><span>●</span></div><span style="margin-left:6px;color:#8a7050">重新解读中</span>';
+  el.style.color = '#4a3520';
+  initReading();
+}
+
+function goBack() {
+  if (document.referrer && history.length > 1) history.back();
+  else showToast('没有可返回的页面');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+document.addEventListener('DOMContentLoaded', initReading);
+</script>
+</body>
+</html>
